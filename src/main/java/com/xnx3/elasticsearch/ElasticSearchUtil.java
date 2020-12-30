@@ -1,20 +1,35 @@
 package com.xnx3.elasticsearch;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import org.apache.http.HttpHost;
+import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
 
 /**
  * ElasticSearch 操作
@@ -37,7 +52,7 @@ public class ElasticSearchUtil {
 	 */
 	public RestHighLevelClient getClient(){
 		if(client == null){
-			client = new RestHighLevelClient(RestClient.builder(new HttpHost(hostname, port, scheme)));
+			client = new RestHighLevelClient(RestClient.builder(new HttpHost(this.hostname, this.port, this.scheme)));
 		}
 		return client;
 	}
@@ -87,29 +102,117 @@ public class ElasticSearchUtil {
     }
 	
     /**
-     * 数据添加，正定ID
+     * 数据添加，网 elasticsearch 中添加一条数据
      * @param params 要增加的数据，key-value形式。 其中map.value 支持的类型有 String、int、long、float、double、boolean
-     * @param index 索引，类似数据库的表，是添加进那个表
-     * @param id 数据ID, 如果传入null，则自动生成一个32位uuid
+     * @param indexName 索引名字，类似数据库的表，是添加进那个表
+     * @param id 要添加的这条数据的id, 如果传入null，则由es系统自动生成一个唯一ID
      * @return 创建结果。如果 {@link IndexResponse#getId()} 不为null、且id长度大于0，那么就成功了
      */
-    public IndexResponse put(Map<String, Object> params, String index, String id) throws IOException {
-    	if(id == null){
-    		id = UUID.randomUUID().toString().replaceAll("-", "").toLowerCase();
-    	}
+    public IndexResponse put(Map<String, Object> params, String indexName, String id){
         //创建请求
-        IndexRequest request = new IndexRequest(index);
-        request.id(id);
+        IndexRequest request = new IndexRequest(indexName);
+        if(id != null){
+        	request.id(id);
+    	}
         request.timeout(TimeValue.timeValueSeconds(5));
         
-        IndexResponse response = getClient().index(request.source(mapToJsonString(params), XContentType.JSON), RequestOptions.DEFAULT);
+        IndexResponse response = null;
+		try {
+			response = getClient().index(request.source(mapToJsonString(params), XContentType.JSON), RequestOptions.DEFAULT);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
         return response;
+    }
+    
+    /**
+     * 批量添加数据
+     * @param list 批量添加的数据的List
+     * @param indexName 索引名字，类似数据库的表，是添加进那个表
+     * @return {@link BulkResponse}
+     */
+    public BulkResponse puts(List<Map<String, Object>> list, String indexName){
+    	//批量增加
+        BulkRequest bulkAddRequest = new BulkRequest();
+        IndexRequest indexRequest;
+        for (int i = 0; i < list.size(); i++) {
+        	indexRequest = new IndexRequest(indexName);
+        	indexRequest.source(mapToJsonString(list.get(i)), XContentType.JSON);
+        	bulkAddRequest.add(indexRequest);
+		}
+        
+        BulkResponse bulkAddResponse = null;
+        try {
+        	bulkAddResponse = getClient().bulk(bulkAddRequest, RequestOptions.DEFAULT);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+        return bulkAddResponse;
     }
 
     /**
+     * 查询并分页
+     * @param indexName 索引名字
+     * @param query 查询条件， {@link SearchSourceBuilder}
+     * @param from 从第几条开始查询，相当于 limit a,b 中的a ，比如要从最开始第一条查，可传入： 0
+     * @param size 本次查询最大查询出多少条数据 ,相当于 limit a,b 中的b
+     * @return {@link SearchResponse} 结果，可以通过 response.status().getStatus() == 200 来判断是否执行成功
+     */
+    public SearchResponse search(String indexName, SearchSourceBuilder searchSourceBuilder, Integer from, Integer size){
+        SearchRequest request = new SearchRequest(indexName);
+        searchSourceBuilder.from(from);
+        searchSourceBuilder.size(size);
+        request.source(searchSourceBuilder);
+        SearchResponse response = null;
+		try {
+			response = getClient().search(request, RequestOptions.DEFAULT);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+        return response;
+    }
+    
+
+    /**
+     * 查询数据
+     * @param indexName 索引名字
+     * @param queryString 查询条件，传入如： name:guanleiming AND age:123
+     * @param from 从第几条开始查询，相当于 limit a,b 中的a ，比如要从最开始第一条查，可传入： 0
+     * @param size 本次查询最大查询出多少条数据 ,相当于 limit a,b 中的b
+     * @param sort 排序方式。如果不需要排序，传入null即可。 比如要根据加入时间time由大到小，传入的便是： SortBuilders.fieldSort("time").order(SortOrder.DESC)
+     * @return 查询的结果，封装成list返回。list中的每条都是一条结果。如果链接es出错或者查询异常又或者什么都没查出，那么都是返回一个 new ArrayList<Map<String,Object>>(); ，任何情况返回值不会为null
+     * 		<p>返回的结果集中，每条会自动加入一项 esid ，这个是在es中本条记录的唯一id编号，es自动赋予的。</p> 
+     */
+    public List<Map<String,Object>> search(String indexName, String queryString, Integer from, Integer size, SortBuilder sort){
+    	List<Map<String,Object>> list = new ArrayList<Map<String,Object>>();
+    	
+        QueryBuilder queryBuilder = QueryBuilders.queryStringQuery(queryString);
+    	SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.query(queryBuilder);
+        //判断是否使用排序
+        if(sort != null){
+        	searchSourceBuilder.sort(sort);
+        }
+        SearchResponse response = search(indexName, searchSourceBuilder, from, size);
+        if(response.status().getStatus() == 200){
+        	SearchHit shs[] = response.getHits().getHits();
+        	for (int i = 0; i < shs.length; i++) {
+        		Map<String, Object> map = shs[i].getSourceAsMap();
+        		map.put("esid", shs[i].getId());
+				list.add(map);
+			}
+        }else{
+        	//异常
+        }
+        
+        return list;
+    }
+    
+    
+    /**
      * 将Map<String, Object>转化为json字符串
      * @param params 其中map.value 支持的类型有 String、int、long、float、double、boolean
-     * @return 转化为json格式字符串，返回如： {"username":"管雷鸣","age":29} 
+     * @return 转化为json格式字符串，返回如： {"username":"管雷鸣","age":29}
      */
     public static String mapToJsonString(Map<String, Object> params){
     	if(params == null){
@@ -145,18 +248,95 @@ public class ElasticSearchUtil {
         return sb.toString();
     }
     
+
+    /**
+     * 通过elasticsearch数据的id，获取这条数据
+     * @param indexName 索引名字
+     * @param id elasticsearch数据的id
+     * @return 这条数据的内容。 如果返回null，则是没有找到这条数据，或者执行过程出错。
+     */
+    public Map<String,Object> searchById(String indexName, String id){
+        GetRequest request = new GetRequest(indexName, id);
+        GetResponse response = null;
+		try {
+			response = getClient().get(request, RequestOptions.DEFAULT);
+		} catch (IOException e) {
+			e.printStackTrace();
+			return null;
+		}
+		if(response.isSourceEmpty()){
+			//没有这条数据
+			return null;
+		}
+		
+        Map<String, Object> map = response.getSource();
+        //为返回的数据添加id
+        map.put("esid",response.getId());
+        return map;
+    }
+    
+
+    /**
+     * 通过elasticsearch数据的id，来删除这条数据
+     * @param indexName 索引名字
+     * @param id 要删除的elasticsearch这行数据的id
+     */
+    public boolean deleteById(String indexName, String id) {
+        DeleteRequest request = new DeleteRequest(indexName, id);
+        DeleteResponse delete = null;
+		try {
+			delete = client.delete(request, RequestOptions.DEFAULT);
+		} catch (IOException e) {
+			e.printStackTrace();
+			//删除失败
+			return false;
+		}
+		
+		if(delete == null){
+			//这种情况应该不存在
+			return false;
+		}
+		if(delete.getResult().equals(Result.DELETED)){
+			return true;
+		}else{
+			return false;
+		}
+    }
+    
     public static void main(String[] args) {
+    	String indexName = "testind";
     	Map<String, Object> map = new HashMap<String, Object>();
-    	map.put("username", "管e\"/reriu");
-    	map.put("age", 12);
+    	map.put("username", "guanleiming");
+    	map.put("age", 13);
     	map.put("price", 12.6f);
     	map.put("a", true);
-    	System.out.println(mapToJsonString(map));
+    	
+//    	List<Map<String, Object>> list = new ArrayList<Map<String,Object>>();
+//    	list.add(map);
+//    	map.put("age", 14);
+//    	list.add(map);
+//    	map.put("age", 15);
+//    	list.add(map);
     	
     	ElasticSearchUtil es = new ElasticSearchUtil("192.168.31.134");
-		System.out.println(es.existIndex("testind")+"");
-		
-		
+//    	IndexResponse ir = es.put(map, indexName, null);
+//    	BulkResponse ir = es.puts(list, indexName);
+//    	System.out.println(ir);
+    	
+//    	QueryBuilder queryBuilder = QueryBuilders.queryStringQuery("age:12 AND a:false");
+//    	SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+//        searchSourceBuilder.query(queryBuilder);
+//		System.out.println(es.searchListData(indexName, searchSourceBuilder, 0, 10).toString());
+
+//    	List<Map<String, Object>> lists = es.search(indexName, "a:true", 0, 100, null);
+//    	for (int i = 0; i < lists.size(); i++) {
+//			System.out.println(lists.get(i));
+//		}
+    	
+    	Map<String, Object> m = es.searchById(indexName, "ffcb76770ecb40dcb74bdd5b9a993164");
+    	System.out.println(m);
+//    	boolean b = es.deleteById(indexName, "9902241cc47445458e17bc8d5520cb22");
+//    	System.out.println(b);
 	}
     
 }
