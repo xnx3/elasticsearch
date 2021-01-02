@@ -30,6 +30,8 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 
 /**
  * ElasticSearch 操作
@@ -42,8 +44,18 @@ public class ElasticSearchUtil {
 	private int port = 9200;
 	private String scheme = "http";
 	
+	public ElasticSearchUtil(RestHighLevelClient client) {
+		this.client = client;
+	}
+	
 	public ElasticSearchUtil(String hostname) {
 		this.hostname = hostname;
+	}
+	
+	public ElasticSearchUtil(String hostname, int port, String scheme) {
+		this.hostname = hostname;
+		this.port = port;
+		this.scheme = scheme;
 	}
 	
 	/**
@@ -56,7 +68,6 @@ public class ElasticSearchUtil {
 		}
 		return client;
 	}
-	
 
     /**
      * 创建索引
@@ -123,6 +134,18 @@ public class ElasticSearchUtil {
 			e.printStackTrace();
 		}
         return response;
+    }
+    
+
+    /**
+     * 数据添加，网 elasticsearch 中添加一条数据
+     * @param params 要增加的数据，key-value形式。 其中map.value 支持的类型有 String、int、long、float、double、boolean
+     * @param indexName 索引名字，类似数据库的表，是添加进那个表
+     * @param id 要添加的这条数据的id, 如果传入null，则由es系统自动生成一个唯一ID
+     * @return 创建结果。如果 {@link IndexResponse#getId()} 不为null、且id长度大于0，那么就成功了
+     */
+    public IndexResponse put(Map<String, Object> params, String indexName){
+        return put(params, indexName, null);
     }
     
     /**
@@ -206,6 +229,19 @@ public class ElasticSearchUtil {
         }
         
         return list;
+    }
+    
+
+    /**
+     * 查询数据
+     * <p>如果数据超过100条，那么只会返回前100条数据。<p>
+     * @param indexName 索引名字
+     * @param queryString 查询条件，传入如： name:guanleiming AND age:123
+     * @return 查询的结果，封装成list返回。list中的每条都是一条结果。如果链接es出错或者查询异常又或者什么都没查出，那么都是返回一个 new ArrayList<Map<String,Object>>(); ，任何情况返回值不会为null
+     * 		<p>返回的结果集中，每条会自动加入一项 esid ，这个是在es中本条记录的唯一id编号，es自动赋予的。</p> 
+     */
+    public List<Map<String,Object>> search(String indexName, String queryString){
+    	return search(indexName, queryString, 0, 100, null);
     }
     
     
@@ -306,8 +342,8 @@ public class ElasticSearchUtil {
     public static void main(String[] args) {
     	String indexName = "testind";
     	Map<String, Object> map = new HashMap<String, Object>();
-    	map.put("username", "guanleiming");
-    	map.put("age", 13);
+    	map.put("username", "zhangqun");
+    	map.put("age", 17);
     	map.put("price", 12.6f);
     	map.put("a", true);
     	
@@ -319,7 +355,7 @@ public class ElasticSearchUtil {
 //    	list.add(map);
     	
     	ElasticSearchUtil es = new ElasticSearchUtil("192.168.31.134");
-//    	IndexResponse ir = es.put(map, indexName, null);
+//    	IndexResponse ir = es.put(map, indexName);
 //    	BulkResponse ir = es.puts(list, indexName);
 //    	System.out.println(ir);
     	
@@ -328,13 +364,14 @@ public class ElasticSearchUtil {
 //        searchSourceBuilder.query(queryBuilder);
 //		System.out.println(es.searchListData(indexName, searchSourceBuilder, 0, 10).toString());
 
-//    	List<Map<String, Object>> lists = es.search(indexName, "a:true", 0, 100, null);
-//    	for (int i = 0; i < lists.size(); i++) {
-//			System.out.println(lists.get(i));
-//		}
+//    	List<Map<String, Object>> lists = es.search(indexName, "username:guanleiming", 0, 100, SortBuilders.fieldSort("age").order(SortOrder.DESC));
+    	List<Map<String, Object>> lists = es.search(indexName, "username:guanleiming AND age:13");
+    	for (int i = 0; i < lists.size(); i++) {
+			System.out.println(lists.get(i));
+		}
     	
-    	Map<String, Object> m = es.searchById(indexName, "ffcb76770ecb40dcb74bdd5b9a993164");
-    	System.out.println(m);
+//    	Map<String, Object> m = es.searchById(indexName, "ffcb76770ecb40dcb74bdd5b9a993164");
+//    	System.out.println(m);
 //    	boolean b = es.deleteById(indexName, "9902241cc47445458e17bc8d5520cb22");
 //    	System.out.println(b);
 	}
