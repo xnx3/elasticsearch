@@ -44,14 +44,31 @@ public class ElasticSearchUtil {
 	private int port = 9200;
 	private String scheme = "http";
 	
+	/**
+	 * 通过传入自定义 {@link RestHighLevelClient} 的方式，创建工具类
+	 * @param client 传入如：
+	 * 	<pre>
+	 *   new RestHighLevelClient(RestClient.builder(new HttpHost("127.0.0.1", "9200", "http")))
+	 * 	</pre>
+	 */
 	public ElasticSearchUtil(RestHighLevelClient client) {
 		this.client = client;
 	}
 	
+	/**
+	 * 初始化 ElasticSearchUtil
+	 * @param hostname elasticsearch所在的ip，传入如 127.0.0.1
+	 */
 	public ElasticSearchUtil(String hostname) {
 		this.hostname = hostname;
 	}
 	
+	/**
+	 * 初始化 ElasticSearchUtil
+	 * @param hostname elasticsearch所在的ip，传入如 127.0.0.1
+	 * @param port elasticsearch服务的端口号，传入如 9200
+	 * @param scheme 协议，传入如 http
+	 */
 	public ElasticSearchUtil(String hostname, int port, String scheme) {
 		this.hostname = hostname;
 		this.port = port;
