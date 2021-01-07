@@ -5,7 +5,16 @@ ElasticSearch工具类，像操作数据库一般两行代码操作ElasticSearch
 使用的 elasticsearch-7.10.1 做的测试。
 
 ## 使用
-#### 初始化
+#### 1. Maven引入
+````
+<dependency>
+	<groupId>com.xnx3.elasticsearch</groupId>
+	<artifactId>elasticsearch</artifactId>
+	<version>1.0</version>
+</dependency>
+````
+
+#### 2. 创建ElasticSearch操作的工具类对象
 ````
 ElasticSearchUtil es = new ElasticSearchUtil("192.168.31.134");
 ````
