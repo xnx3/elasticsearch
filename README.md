@@ -19,7 +19,7 @@ ElasticSearch工具类，像操作数据库一般两行代码操作ElasticSearch
 ElasticSearchUtil es = new ElasticSearchUtil("192.168.31.134");
 ````
 
-#### 写入数据
+#### 3. 写入数据
 ````
 //用map定义一条数据
 Map<String, Object> map = new HashMap<String, Object>();
@@ -29,7 +29,7 @@ map.put("age", 13);
 es.put(map, "user");
 ````
 
-#### 查询数据
+#### 4. 查询数据
 
 ##### 从user索引(类似于数据的表)中，查询username的值是guanleiming的数据
 ````
