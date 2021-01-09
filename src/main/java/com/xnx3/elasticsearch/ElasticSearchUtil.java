@@ -3,6 +3,7 @@ package com.xnx3.elasticsearch;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import org.apache.http.HttpHost;
@@ -30,8 +31,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.search.sort.SortOrder;
 
 /**
  * ElasticSearch 操作
@@ -45,6 +44,14 @@ public class ElasticSearchUtil {
 	private String scheme = "http";
 	
 	/**
+	 * 缓存。
+	 * key:  indexName
+	 * value： 要打包提交的 List
+	 */
+	public Map<String, List<Map<String, Object>>> cacheMap;
+	public int cacheMaxNumber = 100; //如果使用缓存，这里是缓存中的最大条数，超过这些条就会自动打包提交
+	
+	/**
 	 * 通过传入自定义 {@link RestHighLevelClient} 的方式，创建工具类
 	 * @param client 传入如：
 	 * 	<pre>
@@ -53,6 +60,7 @@ public class ElasticSearchUtil {
 	 */
 	public ElasticSearchUtil(RestHighLevelClient client) {
 		this.client = client;
+		cacheMap = new HashMap<String, List<Map<String,Object>>>();
 	}
 	
 	/**
@@ -61,6 +69,7 @@ public class ElasticSearchUtil {
 	 */
 	public ElasticSearchUtil(String hostname) {
 		this.hostname = hostname;
+		cacheMap = new HashMap<String, List<Map<String,Object>>>();
 	}
 	
 	/**
@@ -73,8 +82,18 @@ public class ElasticSearchUtil {
 		this.hostname = hostname;
 		this.port = port;
 		this.scheme = scheme;
+		cacheMap = new HashMap<String, List<Map<String,Object>>>();
 	}
 	
+	
+	/**
+	 * 设置缓存中最大缓存的条数。超过这些条就会自动打包提交。 这里自动提交的便是 {@link #cache(Map)} 所缓存的数据
+	 * @param cacheMaxNumber 缓存的条数。如果不设置，默认是100
+	 */
+	public void setCacheMaxNumber(int cacheMaxNumber) {
+		this.cacheMaxNumber = cacheMaxNumber;
+	}
+
 	/**
 	 * 获取操作的 client
 	 * @return {@link RestHighLevelClient}
@@ -85,7 +104,49 @@ public class ElasticSearchUtil {
 		}
 		return client;
 	}
-
+	
+	/**
+	 * 将之提交到缓存Cache中。这里不同意put,put是直接提交到ElasticSearch中，而这个只是提交到Java缓存中，等积累到一定条数之后，在一起将Java缓存中的打包一次性提交到 Elasticsearch中
+	 * <p>默认同一个indexName索引中，缓存最大条数是100条，达到100条会自动提交到 elasticsearch。 这个最大条数，可以通过  {@link #setCacheMaxNumber(int)} 进行设置。建议不要超过4000条 </p>
+	 * @param params 要增加的数据，key-value形式。 其中map.value 支持的类型有 String、int、long、float、double、boolean
+	 * @param indexName 索引名字，类似数据库的表，是将数据添加进哪个表
+	 */
+	public synchronized void cache(Map<String, Object> params, String indexName){
+		List<Map<String,Object>> list = cacheMap.get(indexName);
+		if(list == null){
+			list = new LinkedList<Map<String,Object>>();
+		}
+		list.add(params);
+		
+		if(list.size() >= this.cacheMaxNumber){
+			//提交
+			cacheSubmit(indexName);
+		}
+	}
+	
+	/**
+	 * 将当前缓存中某个索引中的数据提交到elasticsearch中
+	 * @param indexName 索引名字，类似数据库的表，是将数据添加进哪个表
+	 * @return true:成功；  false:提交失败
+	 */
+	public synchronized boolean cacheSubmit(String indexName){
+		List<Map<String,Object>> list = cacheMap.get(indexName);
+		if(list == null){
+			return true;
+		}
+		
+		BulkResponse res = puts(list, indexName);
+		if(res.hasFailures()){
+			//出现错误，那么不清空list
+			return false;
+		}else{
+			//成功，那么清空缓存中这个索引的数据
+			list.clear();
+			cacheMap.put(indexName, list);
+			return true;
+		}
+	}
+	
     /**
      * 创建索引
      * @param indexName 要创建的索引的名字，传入如： testindex
