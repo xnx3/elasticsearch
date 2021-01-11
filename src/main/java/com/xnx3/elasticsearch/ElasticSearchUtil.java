@@ -120,8 +120,15 @@ public class ElasticSearchUtil {
 		
 		if(list.size() >= this.cacheMaxNumber){
 			//提交
-			cacheSubmit(indexName);
+			boolean submit = cacheSubmit(indexName);
+			if(submit){
+				//提交成功，那么清空indexName的list
+				list.clear();
+			}
 		}
+		
+		//重新赋予cacheMap
+		cacheMap.put(indexName, list);
 	}
 	
 	/**
@@ -340,7 +347,9 @@ public class ElasticSearchUtil {
         		sb.append(",");
         	}
         	
-        	if(obj instanceof String){
+        	if(obj == null){
+        		sb.append("\""+entry.getKey()+"\":\"\"");
+        	}else if(obj instanceof String){
         		sb.append("\""+entry.getKey()+"\":\""+((String)obj).replaceAll("\"", "\\\\\"")+"\"");
         	}else if(obj instanceof Integer){
         		sb.append("\""+entry.getKey()+"\":"+(Integer)obj+"");
@@ -420,7 +429,7 @@ public class ElasticSearchUtil {
     public static void main(String[] args) {
     	String indexName = "testind";
     	Map<String, Object> map = new HashMap<String, Object>();
-    	map.put("username", "zhangqun");
+    	map.put("username", "zhangqun222");
     	map.put("age", 17);
     	map.put("price", 12.6f);
     	map.put("a", true);
@@ -432,7 +441,7 @@ public class ElasticSearchUtil {
 //    	map.put("age", 15);
 //    	list.add(map);
     	
-    	ElasticSearchUtil es = new ElasticSearchUtil("192.168.31.134");
+    	ElasticSearchUtil es = new ElasticSearchUtil("192.168.31.24");
 //    	IndexResponse ir = es.put(map, indexName);
 //    	BulkResponse ir = es.puts(list, indexName);
 //    	System.out.println(ir);
@@ -442,12 +451,23 @@ public class ElasticSearchUtil {
 //        searchSourceBuilder.query(queryBuilder);
 //		System.out.println(es.searchListData(indexName, searchSourceBuilder, 0, 10).toString());
 
-//    	List<Map<String, Object>> lists = es.search(indexName, "username:guanleiming", 0, 100, SortBuilders.fieldSort("age").order(SortOrder.DESC));
-    	List<Map<String, Object>> lists = es.search(indexName, "username:guanleiming AND age:13");
+    	es.cache(map, indexName);
+    	es.cache(map, indexName);
+    	es.cache(map, indexName);
+    	es.cache(map, indexName);
+    	es.cache(map, indexName);
+    	es.cache(map, indexName);
+    	es.cache(map, indexName);
+    	es.cache(map, indexName);
+    	System.out.println(es.cacheSubmit(indexName));
+    	
+    	
+//    	List<Map<String, Object>> lists = es.search("useraction", "", 0, 100, null);
+    	List<Map<String, Object>> lists = es.search(indexName, "username:zhangqun222");
     	for (int i = 0; i < lists.size(); i++) {
 			System.out.println(lists.get(i));
 		}
-    	
+    	System.out.println(lists.size());
 //    	Map<String, Object> m = es.searchById(indexName, "ffcb76770ecb40dcb74bdd5b9a993164");
 //    	System.out.println(m);
 //    	boolean b = es.deleteById(indexName, "9902241cc47445458e17bc8d5520cb22");
