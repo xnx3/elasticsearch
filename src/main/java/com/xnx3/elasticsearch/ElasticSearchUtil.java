@@ -31,6 +31,8 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
+import com.xnx3.elasticsearch.jsonFormat.DefaultJsonFormat;
+import com.xnx3.elasticsearch.jsonFormat.JsonFormatInterface;
 
 /**
  * ElasticSearch 操作
@@ -42,6 +44,7 @@ public class ElasticSearchUtil {
 	private String hostname = "127.0.0.1";
 	private int port = 9200;
 	private String scheme = "http";
+	private JsonFormatInterface jsonFormatInterface; //JSON格式化接口。默认使用 DefaultJsonFormat();
 	
 	/**
 	 * 缓存。
@@ -61,6 +64,7 @@ public class ElasticSearchUtil {
 	public ElasticSearchUtil(RestHighLevelClient client) {
 		this.client = client;
 		cacheMap = new HashMap<String, List<Map<String,Object>>>();
+		jsonFormatInterface = new DefaultJsonFormat();
 	}
 	
 	/**
@@ -70,6 +74,7 @@ public class ElasticSearchUtil {
 	public ElasticSearchUtil(String hostname) {
 		this.hostname = hostname;
 		cacheMap = new HashMap<String, List<Map<String,Object>>>();
+		jsonFormatInterface = new DefaultJsonFormat();
 	}
 	
 	/**
@@ -83,6 +88,7 @@ public class ElasticSearchUtil {
 		this.port = port;
 		this.scheme = scheme;
 		cacheMap = new HashMap<String, List<Map<String,Object>>>();
+		jsonFormatInterface = new DefaultJsonFormat();
 	}
 	
 	
@@ -92,6 +98,14 @@ public class ElasticSearchUtil {
 	 */
 	public void setCacheMaxNumber(int cacheMaxNumber) {
 		this.cacheMaxNumber = cacheMaxNumber;
+	}
+
+	/**
+	 * JSON格式化接口。如果不设置此处，默认使用 {@link DefaultJsonFormat}
+	 * @param jsonFormatInterface 设置自定义json序列化方法
+	 */
+	public void setJsonFormatInterface(JsonFormatInterface jsonFormatInterface) {
+		this.jsonFormatInterface = jsonFormatInterface;
 	}
 
 	/**
@@ -143,7 +157,7 @@ public class ElasticSearchUtil {
 		}
 		
 		BulkResponse res = puts(list, indexName);
-		if(res.hasFailures()){
+		if(res == null || res.hasFailures()){
 			//出现错误，那么不清空list
 			return false;
 		}else{
@@ -214,7 +228,7 @@ public class ElasticSearchUtil {
         
         IndexResponse response = null;
 		try {
-			response = getClient().index(request.source(mapToJsonString(params), XContentType.JSON), RequestOptions.DEFAULT);
+			response = getClient().index(request.source(jsonFormatInterface.mapToJsonString(params), XContentType.JSON), RequestOptions.DEFAULT);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -237,15 +251,19 @@ public class ElasticSearchUtil {
      * 批量添加数据
      * @param list 批量添加的数据的List
      * @param indexName 索引名字，类似数据库的表，是添加进那个表
-     * @return {@link BulkResponse}
+     * @return {@link BulkResponse} ，如果没提交，或者提交的是空，或者出错，那么会返回null。判断其有没有提交成功可以使用  (res != null && !res.hasFailures())    
      */
     public BulkResponse puts(List<Map<String, Object>> list, String indexName){
+    	if(list.size() < 1){
+    		return null;
+    	}
+    	
     	//批量增加
         BulkRequest bulkAddRequest = new BulkRequest();
         IndexRequest indexRequest;
         for (int i = 0; i < list.size(); i++) {
         	indexRequest = new IndexRequest(indexName);
-        	indexRequest.source(mapToJsonString(list.get(i)), XContentType.JSON);
+        	indexRequest.source(jsonFormatInterface.mapToJsonString(list.get(i)), XContentType.JSON);
         	bulkAddRequest.add(indexRequest);
 		}
         
@@ -330,47 +348,6 @@ public class ElasticSearchUtil {
     }
     
     
-    /**
-     * 将Map<String, Object>转化为json字符串
-     * @param params 其中map.value 支持的类型有 String、int、long、float、double、boolean
-     * @return 转化为json格式字符串，返回如： {"username":"管雷鸣","age":29}
-     */
-    public static String mapToJsonString(Map<String, Object> params){
-    	if(params == null){
-    		return "{}";
-    	}
-    	StringBuffer sb = new StringBuffer();
-        sb.append("{");
-        for(Map.Entry<String, Object> entry : params.entrySet()){
-        	Object obj = entry.getValue();
-        	if(sb.length() > 1){
-        		sb.append(",");
-        	}
-        	
-        	if(obj == null){
-        		sb.append("\""+entry.getKey()+"\":\"\"");
-        	}else if(obj instanceof String){
-        		sb.append("\""+entry.getKey()+"\":\""+((String)obj).replaceAll("\"", "\\\\\"")+"\"");
-        	}else if(obj instanceof Integer){
-        		sb.append("\""+entry.getKey()+"\":"+(Integer)obj+"");
-        	}else if(obj instanceof Long){
-        		sb.append("\""+entry.getKey()+"\":"+(Long)obj+"");
-        	}else if(obj instanceof Float){
-        		sb.append("\""+entry.getKey()+"\":"+(Float)obj+"");
-        	}else if( obj instanceof Double){
-        		sb.append("\""+entry.getKey()+"\":"+(Double)obj+"");
-        	}else if(obj instanceof Boolean){
-        		sb.append("\""+entry.getKey()+"\":"+(Boolean)obj+"");
-        	}else{
-        		//其他类型全当成toString()来处理
-        		sb.append("\""+entry.getKey()+"\":"+obj.toString()+"");
-        	}
-        }
-        sb.append("}");
-        
-        return sb.toString();
-    }
-    
 
     /**
      * 通过elasticsearch数据的id，获取这条数据
@@ -451,19 +428,20 @@ public class ElasticSearchUtil {
 //        searchSourceBuilder.query(queryBuilder);
 //		System.out.println(es.searchListData(indexName, searchSourceBuilder, 0, 10).toString());
 
-    	es.cache(map, indexName);
-    	es.cache(map, indexName);
-    	es.cache(map, indexName);
-    	es.cache(map, indexName);
-    	es.cache(map, indexName);
-    	es.cache(map, indexName);
-    	es.cache(map, indexName);
-    	es.cache(map, indexName);
-    	System.out.println(es.cacheSubmit(indexName));
+//    	es.cache(map, indexName);
+//    	es.cache(map, indexName);
+//    	es.cache(map, indexName);
+//    	es.cache(map, indexName);
+//    	es.cache(map, indexName);
+//    	es.cache(map, indexName);
+//    	es.cache(map, indexName);
+//    	es.cache(map, indexName);
+//    	System.out.println(es.cacheSubmit(indexName));
     	
     	
 //    	List<Map<String, Object>> lists = es.search("useraction", "", 0, 100, null);
-    	List<Map<String, Object>> lists = es.search(indexName, "username:zhangqun222");
+    	List<Map<String, Object>> lists = es.search("useraction", "username:wangzhan");
+//    	List<Map<String, Object>> lists = es.search(indexName, "username:zhangqun222");
     	for (int i = 0; i < lists.size(); i++) {
 			System.out.println(lists.get(i));
 		}
