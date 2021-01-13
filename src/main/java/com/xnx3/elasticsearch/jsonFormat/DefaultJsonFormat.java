@@ -1,6 +1,8 @@
 package com.xnx3.elasticsearch.jsonFormat;
 
+import java.util.HashMap;
 import java.util.Map;
+import com.alibaba.fastjson.JSON;
 
 /**
  * 默认的json格式化接口
@@ -11,43 +13,14 @@ public class DefaultJsonFormat implements JsonFormatInterface{
 	
 	/**
      * 将Map<String, Object>转化为json字符串
-     * @param params 其中map.value 支持的类型有 String、int、long、float、double、boolean
+     * @param params {@link Map}
      */
 	public String mapToJsonString(Map<String, Object> params) {
     	if(params == null){
-    		return "{}";
+    		params = new HashMap<String, Object>();
     	}
-    	StringBuffer sb = new StringBuffer();
-        sb.append("{");
-        for(Map.Entry<String, Object> entry : params.entrySet()){
-        	Object obj = entry.getValue();
-        	if(sb.length() > 1){
-        		sb.append(",");
-        	}
-        	
-        	if(obj == null){
-        		sb.append("\""+entry.getKey()+"\":\"\"");
-        	}else if(obj instanceof String){
-        		sb.append("\""+entry.getKey()+"\":\""+((String)obj).replaceAll("\"", "\\\\\"")+"\"");
-        	}else if(obj instanceof Integer){
-        		sb.append("\""+entry.getKey()+"\":"+(Integer)obj+"");
-        	}else if(obj instanceof Long){
-        		sb.append("\""+entry.getKey()+"\":"+(Long)obj+"");
-        	}else if(obj instanceof Float){
-        		sb.append("\""+entry.getKey()+"\":"+(Float)obj+"");
-        	}else if( obj instanceof Double){
-        		sb.append("\""+entry.getKey()+"\":"+(Double)obj+"");
-        	}else if(obj instanceof Boolean){
-        		sb.append("\""+entry.getKey()+"\":"+(Boolean)obj+"");
-        	}else{
-        		//其他类型全当成toString()来处理
-        		sb.append("\""+entry.getKey()+"\":"+obj.toString()+"");
-        	}
-        }
-        sb.append("}");
         
-        return sb.toString();
+        return JSON.toJSONString(params);
 	}
-	
 	
 }

@@ -7,6 +7,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import org.apache.http.HttpHost;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -21,7 +22,9 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.unit.TimeValue;
@@ -31,6 +34,8 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
 import com.xnx3.elasticsearch.jsonFormat.DefaultJsonFormat;
 import com.xnx3.elasticsearch.jsonFormat.JsonFormatInterface;
 
@@ -40,11 +45,14 @@ import com.xnx3.elasticsearch.jsonFormat.JsonFormatInterface;
  *
  */
 public class ElasticSearchUtil {
-	private RestHighLevelClient client;
+	private RestHighLevelClient restHighLevelClient;
+	private RestClient restClient;
+	
 	private String hostname = "127.0.0.1";
 	private int port = 9200;
 	private String scheme = "http";
 	private JsonFormatInterface jsonFormatInterface; //JSON格式化接口。默认使用 DefaultJsonFormat();
+	private HttpHost[] httpHosts;
 	
 	/**
 	 * 缓存。
@@ -55,14 +63,14 @@ public class ElasticSearchUtil {
 	public int cacheMaxNumber = 100; //如果使用缓存，这里是缓存中的最大条数，超过这些条就会自动打包提交
 	
 	/**
-	 * 通过传入自定义 {@link RestHighLevelClient} 的方式，创建工具类
+	 * 通过传入自定义 {@link HttpHost} 的方式，创建工具类
 	 * @param client 传入如：
 	 * 	<pre>
-	 *   new RestHighLevelClient(RestClient.builder(new HttpHost("127.0.0.1", "9200", "http")))
+	 *   new HttpHost("127.0.0.1", "9200", "http"))
 	 * 	</pre>
 	 */
-	public ElasticSearchUtil(RestHighLevelClient client) {
-		this.client = client;
+	public ElasticSearchUtil(HttpHost... httpHosts) {
+		this.httpHosts = httpHosts;
 		cacheMap = new HashMap<String, List<Map<String,Object>>>();
 		jsonFormatInterface = new DefaultJsonFormat();
 	}
@@ -109,14 +117,37 @@ public class ElasticSearchUtil {
 	}
 
 	/**
-	 * 获取操作的 client
+	 * 获取操作的 {@link RestHighLevelClient} 对象
 	 * @return {@link RestHighLevelClient}
 	 */
-	public RestHighLevelClient getClient(){
-		if(client == null){
-			client = new RestHighLevelClient(RestClient.builder(new HttpHost(this.hostname, this.port, this.scheme)));
+	public RestHighLevelClient getRestHighLevelClient(){
+		if(this.restHighLevelClient == null){
+			if(this.httpHosts == null){
+				//没有直接传入 httpshosts，那么就是使用单个的
+				HttpHost httpHost = new HttpHost(this.hostname, this.port, this.scheme);
+				this.httpHosts = new HttpHost[1];
+				this.httpHosts[0] = httpHost;
+			}
+			this.restHighLevelClient = new RestHighLevelClient(RestClient.builder(this.httpHosts));
 		}
-		return client;
+		return this.restHighLevelClient;
+	}
+	
+	/**
+	 * 获取操作的 {@link RestClient} 对象
+	 * @return {@link RestClient}
+	 */
+	public RestClient getRestClient(){
+		if(this.restClient == null){
+			if(this.httpHosts == null){
+				//没有直接传入 httpshosts，那么就是使用单个的
+				HttpHost httpHost = new HttpHost(this.hostname, this.port, this.scheme);
+				this.httpHosts = new HttpHost[1];
+				this.httpHosts[0] = httpHost;
+			}
+			this.restClient = RestClient.builder(this.httpHosts).build();
+		}
+		return this.restClient;
 	}
 	
 	/**
@@ -181,7 +212,7 @@ public class ElasticSearchUtil {
         }
     	
         CreateIndexRequest request = new CreateIndexRequest(indexName);
-        response = getClient().indices().create(request, RequestOptions.DEFAULT);
+        response = getRestHighLevelClient().indices().create(request, RequestOptions.DEFAULT);
         return response;
     }
 	
@@ -203,7 +234,7 @@ public class ElasticSearchUtil {
         request.indices(index);
         boolean exists;
 		try {
-			exists = getClient().indices().exists(request, RequestOptions.DEFAULT);
+			exists = getRestHighLevelClient().indices().exists(request, RequestOptions.DEFAULT);
 		} catch (IOException e) {
 			e.printStackTrace();
 			return false;
@@ -228,7 +259,7 @@ public class ElasticSearchUtil {
         
         IndexResponse response = null;
 		try {
-			response = getClient().index(request.source(jsonFormatInterface.mapToJsonString(params), XContentType.JSON), RequestOptions.DEFAULT);
+			response = getRestHighLevelClient().index(request.source(jsonFormatInterface.mapToJsonString(params), XContentType.JSON), RequestOptions.DEFAULT);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -269,7 +300,7 @@ public class ElasticSearchUtil {
         
         BulkResponse bulkAddResponse = null;
         try {
-        	bulkAddResponse = getClient().bulk(bulkAddRequest, RequestOptions.DEFAULT);
+        	bulkAddResponse = getRestHighLevelClient().bulk(bulkAddRequest, RequestOptions.DEFAULT);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -291,7 +322,7 @@ public class ElasticSearchUtil {
         request.source(searchSourceBuilder);
         SearchResponse response = null;
 		try {
-			response = getClient().search(request, RequestOptions.DEFAULT);
+			response = getRestHighLevelClient().search(request, RequestOptions.DEFAULT);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -359,7 +390,7 @@ public class ElasticSearchUtil {
         GetRequest request = new GetRequest(indexName, id);
         GetResponse response = null;
 		try {
-			response = getClient().get(request, RequestOptions.DEFAULT);
+			response = getRestHighLevelClient().get(request, RequestOptions.DEFAULT);
 		} catch (IOException e) {
 			e.printStackTrace();
 			return null;
@@ -385,7 +416,7 @@ public class ElasticSearchUtil {
         DeleteRequest request = new DeleteRequest(indexName, id);
         DeleteResponse delete = null;
 		try {
-			delete = client.delete(request, RequestOptions.DEFAULT);
+			delete = getRestHighLevelClient().delete(request, RequestOptions.DEFAULT);
 		} catch (IOException e) {
 			e.printStackTrace();
 			//删除失败
@@ -403,6 +434,55 @@ public class ElasticSearchUtil {
 		}
     }
     
+    /**
+     * 以 sql查询语句的形式，搜索 elasticsearch
+     * @param sqlQuery sql查询语句，传入如： select * from user WHERE username = 'guanleiming'
+     * @return List结果
+     */
+    public List<Map<String, Object>> searchBySqlQuery(String sqlQuery){
+    	List<Map<String, Object>> list = new ArrayList<Map<String,Object>>();
+    	
+    	String method = "GET";
+        String endPoint = "/_sql";
+        Request request = new Request(method, endPoint);
+        request.addParameter("format", "json");
+        request.setJsonEntity("{\"query\":\""+sqlQuery+"\"}");
+    	
+    	try {
+			Response response = getRestClient().performRequest(request);
+			String text = EntityUtils.toString(response.getEntity());
+			
+			JSONObject json = JSONObject.parseObject(text);
+			JSONArray columnsJsonArray = json.getJSONArray("columns");
+			String columns[] = new String[columnsJsonArray.size()];
+			//遍历columns
+			for (int i = 0; i < columnsJsonArray.size(); i++) {
+				JSONObject columnJsonObject = columnsJsonArray.getJSONObject(i);
+				columns[i] = columnJsonObject.getString("name");
+			}
+			
+			//遍历数据
+			JSONArray rowsJsonArray = json.getJSONArray("rows");
+			for (int i = 0; i < rowsJsonArray.size(); i++) {
+				JSONArray row = rowsJsonArray.getJSONArray(i);
+				
+				Map<String, Object> map = new HashMap<String, Object>();
+				for (int j = 0; j < row.size(); j++) {
+					Object obj = row.get(j);
+					if(obj != null){
+						//如果此项不为null，那么加入 map
+						map.put(columns[j], obj);
+					}
+				}
+				list.add(map);
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+    	
+    	return list;
+    }
+    
     public static void main(String[] args) {
     	String indexName = "testind";
     	Map<String, Object> map = new HashMap<String, Object>();
@@ -418,7 +498,35 @@ public class ElasticSearchUtil {
 //    	map.put("age", 15);
 //    	list.add(map);
     	
+//    	final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+//    	credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials("admin", "123456Abc"));
+//    	RestHighLevelClient client = new RestHighLevelClient(
+//                RestClient.builder(
+//                        new HttpHost("114.116.251.118", 9200, "https")
+//                ).setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
+//                    public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
+//                        httpClientBuilder.disableAuthCaching();
+//                        return httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
+//                    }
+//                })
+                
+//                .setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
+//                    public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
+//                        httpClientBuilder.disableAuthCaching();
+//                        return httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
+//                    }
+//                })
+//        );
+    	
     	ElasticSearchUtil es = new ElasticSearchUtil("192.168.31.24");
+    	if(!es.existIndex(indexName)){
+    		try {
+				es.createIndex(indexName);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+    	}
+    	
 //    	IndexResponse ir = es.put(map, indexName);
 //    	BulkResponse ir = es.puts(list, indexName);
 //    	System.out.println(ir);
@@ -428,28 +536,85 @@ public class ElasticSearchUtil {
 //        searchSourceBuilder.query(queryBuilder);
 //		System.out.println(es.searchListData(indexName, searchSourceBuilder, 0, 10).toString());
 
-//    	es.cache(map, indexName);
-//    	es.cache(map, indexName);
-//    	es.cache(map, indexName);
-//    	es.cache(map, indexName);
-//    	es.cache(map, indexName);
-//    	es.cache(map, indexName);
-//    	es.cache(map, indexName);
-//    	es.cache(map, indexName);
+    	es.cache(map, indexName);
+    	es.cache(map, indexName);
+    	es.cache(map, indexName);
+    	es.cache(map, indexName);
+    	es.cache(map, indexName);
+    	es.cache(map, indexName);
+    	es.cache(map, indexName);
+    	es.cache(map, indexName);
 //    	System.out.println(es.cacheSubmit(indexName));
     	
     	
+//    	String method = "GET";
+//        String endPoint = "/_sql";
+//        Request request = new Request(method, endPoint);
+//        request.addParameter("format", "json");
+//        
+//        String sql = "update testind set age = 18 WHERE username = 'zhangqun222'";
+//        //String sql = "select * from testind WHERE username = 'zhangqun222'";
+//        
+//        request.setJsonEntity("{\"query\":\""+sql+"\"}");
+//
+//        Response response = es.getClient().p
+////        		.performRequest(request);
+//    	
+    	
+//    	RestHighLevelClient
+//    	RestClient restClient = RestClient.builder(
+//                new HttpHost("192.168.31.24", 9200, "http")
+//         ).build();
+//    	try {
+//			Response response = restClient.performRequest(request);
+//			String text = EntityUtils.toString(response.getEntity());
+//			System.out.println(text);
+//			
+//			JSONObject json = JSONObject.parseObject(text);
+////					parseObject(EntityUtils.toString(response.getEntity()));
+//			System.out.println(json);
+//			JSONArray columnsJsonArray = json.getJSONArray("columns");
+//			String columns[] = new String[columnsJsonArray.size()];
+//			//遍历columns
+//			for (int i = 0; i < columnsJsonArray.size(); i++) {
+//				JSONObject columnJsonObject = columnsJsonArray.getJSONObject(i);
+//				columns[i] = columnJsonObject.getString("name");
+//				System.out.println(columns[i]);
+//			}
+//			System.out.println(columns);
+//			
+//			//遍历数据
+//			JSONArray rowsJsonArray = json.getJSONArray("rows");
+//			for (int i = 0; i < rowsJsonArray.size(); i++) {
+//				JSONArray row = rowsJsonArray.getJSONArray(i);
+//				System.out.println(row);
+//			}
+//			
+//		} catch (IOException e) {
+//			e.printStackTrace();
+//		}
+    	
+    	
 //    	List<Map<String, Object>> lists = es.search("useraction", "", 0, 100, null);
-    	List<Map<String, Object>> lists = es.search("useraction", "username:wangzhan");
-//    	List<Map<String, Object>> lists = es.search(indexName, "username:zhangqun222");
-    	for (int i = 0; i < lists.size(); i++) {
-			System.out.println(lists.get(i));
-		}
-    	System.out.println(lists.size());
+//    	List<Map<String, Object>> lists = es.search("useraction", "SELECT username, COUNT(*) as number GROUP BY username");
+//    	List<Map<String, Object>> lists = es.search(indexName, "SELECT * FROM testind WHERE username='zhangqun222'");
+//    	for (int i = 0; i < lists.size(); i++) {
+//			System.out.println(lists.get(i));
+//		}
+//    	System.out.println(lists.size());
+//    	
+    	
 //    	Map<String, Object> m = es.searchById(indexName, "ffcb76770ecb40dcb74bdd5b9a993164");
 //    	System.out.println(m);
 //    	boolean b = es.deleteById(indexName, "9902241cc47445458e17bc8d5520cb22");
 //    	System.out.println(b);
+    	
+    	
+    	List<Map<String, Object>> list = es.searchBySqlQuery("select * from testind WHERE username = 'zhangqun'");
+    	for (int i = 0; i < list.size(); i++) {
+			System.out.println(list.get(i));
+		}
+//		
 	}
     
 }
