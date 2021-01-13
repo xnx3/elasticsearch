@@ -49,6 +49,6 @@ List<Map<String, Object>> list = es.search("user", "username:guanleiming AND age
 本项目只是将常用接口进行了封装，以便不用入门就能使用。更多的使用，可直接使用本身官方的：
 ````
 es.getRestClient().
-getRestHighLevelClient().
+es.getRestHighLevelClient().
 ````
 可以通过获取client对象，来使用更多 elasticsearch sdk 本身所具有的功能
