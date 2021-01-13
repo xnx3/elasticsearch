@@ -610,7 +610,7 @@ public class ElasticSearchUtil {
 //    	System.out.println(b);
     	
     	
-    	List<Map<String, Object>> list = es.searchBySqlQuery("select * from testind WHERE username = 'zhangqun'");
+    	List<Map<String, Object>> list = es.searchBySqlQuery("SELECT * FROM useraction WHERE username = 'wangzhan' AND time > 1610340207219 ORDER BY time ASC LIMIT 10");
     	for (int i = 0; i < list.size(); i++) {
 			System.out.println(list.get(i));
 		}
