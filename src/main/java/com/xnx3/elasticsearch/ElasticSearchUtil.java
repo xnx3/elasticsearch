@@ -31,11 +31,17 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.xnx3.elasticsearch.bean.GroupByListItem;
 import com.xnx3.elasticsearch.jsonFormat.DefaultJsonFormat;
 import com.xnx3.elasticsearch.jsonFormat.JsonFormatInterface;
 
@@ -483,6 +489,55 @@ public class ElasticSearchUtil {
     	return list;
     }
     
+    /**
+     * group by 统计
+     * @param indexName 要统计的是哪个索引（数据库表）
+     * @param field 针对的是哪个字段，也就是 group by field ，如传入 username
+     * @param queryBuilder 查询条件，传入如
+     * <pre>
+     * //查询time > 1 AND time < 10 
+     * QueryBuilders.rangeQuery("time").gt(1).lt(10);
+     * </pre>
+     * 		其中: 
+     * 			<ul>
+     * 				<li>gt : 大于</li>
+     * 				<li>gte : 大于等于</li>
+     * 				<li>lt : 小于</li>
+     * 				<li>lte : 小于等于</li>
+     * 			</ul>
+     * @return 结果，按照统计条数有大到小排序。如果失败，那么返回的 list.size() 为0
+     */
+    public List<GroupByListItem> groupBy(String indexName, String field, QueryBuilder queryBuilder){
+    	SearchRequest searchRequest = new SearchRequest();
+    	searchRequest.indices(indexName);
+    	TermsAggregationBuilder aggregation = AggregationBuilders.terms("termsname").field(field+".keyword").order(BucketOrder.count(false)).size(100);
+    	SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+    	searchSourceBuilder.aggregation(aggregation);
+    	if(queryBuilder != null){
+    		searchSourceBuilder.query(queryBuilder);
+    	}
+    	searchRequest.source(searchSourceBuilder);
+    	
+    	List<GroupByListItem> list = new ArrayList<GroupByListItem>();
+    	SearchResponse response;
+    	try {
+			response = getRestHighLevelClient().search(searchRequest, RequestOptions.DEFAULT);
+			Terms byAgeAggregation = response.getAggregations().get("termsname");
+			for (Terms.Bucket buck : byAgeAggregation.getBuckets()) {
+				GroupByListItem item = new GroupByListItem();
+				item.setName(buck.getKeyAsString());
+				item.setCount(buck.getDocCount());
+				list.add(item);
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+    	
+    	return list;
+    }
+    
+    
+    
     public static void main(String[] args) {
     	String indexName = "testind";
     	Map<String, Object> map = new HashMap<String, Object>();
@@ -610,11 +665,17 @@ public class ElasticSearchUtil {
 //    	System.out.println(b);
     	
     	
-    	List<Map<String, Object>> list = es.searchBySqlQuery("SELECT * FROM useraction WHERE username = 'wangzhan' AND time > 1610340207219 ORDER BY time ASC LIMIT 10");
+//    	List<Map<String, Object>> list = es.searchBySqlQuery("SELECT * FROM useraction WHERE username = 'wangzhan' AND time > 1610340207219 ORDER BY time ASC LIMIT 10");
+//    	for (int i = 0; i < list.size(); i++) {
+//			System.out.println(list.get(i));
+//		}
+//		
+    	
+    	List<GroupByListItem> list = es.groupBy("useraction", "action", QueryBuilders.rangeQuery("time").gt(1610340206741l).lt(1610340206743l));
     	for (int i = 0; i < list.size(); i++) {
 			System.out.println(list.get(i));
 		}
-//		
+    	
 	}
     
 }
