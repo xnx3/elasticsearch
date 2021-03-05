@@ -349,9 +349,13 @@ public class ElasticSearchUtil {
     public List<Map<String,Object>> search(String indexName, String queryString, Integer from, Integer size, SortBuilder sort){
     	List<Map<String,Object>> list = new ArrayList<Map<String,Object>>();
     	
-        QueryBuilder queryBuilder = QueryBuilders.queryStringQuery(queryString);
     	SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.query(queryBuilder);
+    	if(queryString != null && queryString.length() > 0){
+    		//有查询条件，才会进行查询，否则会查出所有
+    		QueryBuilder queryBuilder = QueryBuilders.queryStringQuery(queryString);
+    		searchSourceBuilder.query(queryBuilder);
+    	}
+    	
         //判断是否使用排序
         if(sort != null){
         	searchSourceBuilder.sort(sort);
@@ -671,7 +675,7 @@ public class ElasticSearchUtil {
 //		}
 //		
     	
-    	List<GroupByListItem> list = es.groupBy("useraction", "action", QueryBuilders.rangeQuery("time").gt(1610340206741l).lt(1610340206743l));
+    	List<Map<String,Object>> list = es.search("useraction", "");
     	for (int i = 0; i < list.size(); i++) {
 			System.out.println(list.get(i));
 		}
