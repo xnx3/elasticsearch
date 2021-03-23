@@ -10,7 +10,7 @@ ElasticSearch工具类，像操作数据库一般两行代码操作ElasticSearch
 <dependency>
 	<groupId>com.xnx3.elasticsearch</groupId>
 	<artifactId>elasticsearch</artifactId>
-	<version>1.0</version>
+	<version>1.1.1</version>
 </dependency>
 ````
 
