@@ -14,12 +14,19 @@ ElasticSearch工具类，像操作数据库一般两行代码操作ElasticSearch
 </dependency>
 ````
 
+
 #### 2. 创建ElasticSearch操作的工具类对象
 ````
 ElasticSearchUtil es = new ElasticSearchUtil("192.168.31.134");
 ````
 
-#### 3. 写入数据
+#### 3. 创建索引（可理解为数据库的表）
+````
+es.createIndex("user");
+````
+这里便是创建了一个名为 user 的索引（可以理解为user数据表），这个只需要创建一次，有了就不用在创建了，当然在执行创建也没事，执行不成功而已。
+
+#### 4. 写入数据
 ````
 //用map定义一条数据
 Map<String, Object> map = new HashMap<String, Object>();
@@ -29,7 +36,7 @@ map.put("age", 26);
 es.put(map, "user");
 ````
 
-#### 4. 查询，取数据
+#### 5. 查询，取数据
 
 ##### 从user索引(可理解为数据的user表)中，查询username的值是guanleiming的数据
 ````
