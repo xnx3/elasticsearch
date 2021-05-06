@@ -3,7 +3,7 @@ ElasticSearch工具类，像操作数据库一般两行代码操作ElasticSearch
 
 ## elasticsearch版本
 使用的 elasticsearch-7.10.1 做的测试。
-
+ 
 ## 使用
 #### 1. Maven引入
 ````
