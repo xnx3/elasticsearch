@@ -7,6 +7,11 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import org.apache.http.HttpHost;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -22,11 +27,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.*;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -177,19 +178,19 @@ public class ElasticSearchUtil {
 			}
 			if(this.username.length() > 0 && this.password.length() > 0) {
 				//当前elasticsearch 设置了连接的用户名密码
-				
-				/*
-				 * 
-				 * 
-				 * 
-				 * 待许佳坤实现用户名密码方式的
-				 * 
-				 * 
-				 */
-				
-				
+				final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+				credentialsProvider.setCredentials(AuthScope.ANY,new UsernamePasswordCredentials(username, password));  //es账号密码（默认用户名为elastic）
+				this.restHighLevelClient =new RestHighLevelClient(
+					RestClient.builder(this.httpHosts).setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
+						public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
+							httpClientBuilder.disableAuthCaching();
+							return httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
+						}
+					})
+				);
+			}else{
+				this.restHighLevelClient = new RestHighLevelClient(RestClient.builder(this.httpHosts));
 			}
-			this.restHighLevelClient = new RestHighLevelClient(RestClient.builder(this.httpHosts));
 		}
 		return this.restHighLevelClient;
 	}
@@ -208,16 +209,14 @@ public class ElasticSearchUtil {
 			}
 			if(this.username.length() > 0 && this.password.length() > 0) {
 				//当前elasticsearch 设置了连接的用户名密码
-				
-				/*
-				 * 
-				 * 
-				 * 
-				 * 待许佳坤实现用户名密码方式的
-				 * 
-				 * 
-				 */
-				
+				final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+				credentialsProvider.setCredentials(AuthScope.ANY,new UsernamePasswordCredentials(username, password));  //es账号密码（默认用户名为elastic）
+				this.restClient = RestClient.builder(this.httpHosts).setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
+					public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
+						httpClientBuilder.disableAuthCaching();
+						return httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
+					}
+				}).build();
 			}
 			this.restClient = RestClient.builder(this.httpHosts).build();
 		}
