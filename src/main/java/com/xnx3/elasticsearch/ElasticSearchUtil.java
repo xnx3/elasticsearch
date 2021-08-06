@@ -57,6 +57,8 @@ public class ElasticSearchUtil {
 	private String hostname = "127.0.0.1";
 	private int port = 9200;
 	private String scheme = "http";
+	private String username = "";	//elasticsearch链接的用户名，如果es本身没设置使用用户名密码的，那这里就不用设置
+	private String password = "";	//elasticsearch链接的密码，如果es本身没设置使用用户名密码的，那这里就不用设置
 	private JsonFormatInterface jsonFormatInterface; //JSON格式化接口。默认使用 DefaultJsonFormat();
 	private HttpHost[] httpHosts;
 	
@@ -105,6 +107,27 @@ public class ElasticSearchUtil {
 		jsonFormatInterface = new DefaultJsonFormat();
 	}
 	
+	/**
+	 * 初始化 ElasticSearchUtil
+	 * @param hostname elasticsearch所在的ip，传入如 127.0.0.1
+	 * @param port elasticsearch服务的端口号，传入如 9200
+	 * @param scheme 协议，传入如 http
+	 * @param username 如果ElasticSearch 有设置用户名密码登录的方式，这里要传入设置的用户名。如果没有密码，这里传入null或者空字符串都行
+	 * @param password 如果ElasticSearch 有设置用户名密码登录的方式，这里要传入设置的密码。如果没有密码，这里传入null或者空字符串都行
+	 */
+	public ElasticSearchUtil(String hostname, int port, String scheme, String username, String password) {
+		this.hostname = hostname;
+		this.port = port;
+		this.scheme = scheme;
+		if(username != null && username.length() > 0) {
+			this.username = username;
+		}
+		if(password != null && password.length() > 0) {
+			this.password = password;
+		}
+		cacheMap = new HashMap<String, List<Map<String,Object>>>();
+		jsonFormatInterface = new DefaultJsonFormat();
+	}
 	
 	/**
 	 * 设置缓存中最大缓存的条数。超过这些条就会自动打包提交。 这里自动提交的便是 {@link #cache(Map)} 所缓存的数据
@@ -540,6 +563,18 @@ public class ElasticSearchUtil {
     	return list;
     }
     
+    /**
+     * @param countSql 统计的sql语句，传入格式如： 
+     * 	<pre>
+     * select count(*) from useraction WHERE action='我是字符串类型' AND time > 1624001953
+     * 	</pre>
+     * @return 执行统计语句所获取到的结果，返回值为int类型
+     */
+    public int count(String countSql){
+    	List<Map<String, Object>> list = searchBySqlQuery(countSql);
+    	int count = (Integer) list.get(0).values().stream().findAny().get();
+	    return count;
+    }
     
     
     public static void main(String[] args) {
@@ -675,10 +710,11 @@ public class ElasticSearchUtil {
 //		}
 //		
     	
-    	List<Map<String,Object>> list = es.search("useraction", "");
+    	List<Map<String,Object>> list = es.search("useraction", "sum(*)");
     	for (int i = 0; i < list.size(); i++) {
 			System.out.println(list.get(i));
 		}
+    	
     	
 	}
     
