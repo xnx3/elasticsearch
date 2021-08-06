@@ -130,6 +130,24 @@ public class ElasticSearchUtil {
 	}
 	
 	/**
+	 * 设置elasticsearch的username、password。此行一般是在
+	 * <pre>
+	 * 	ElasticSearchUtil(String hostname, int port, String scheme)
+	 * </pre>
+	 * 这下面就使用，如果elasticsearch有用户名、密码的话。
+	 * @param username 如果ElasticSearch 有设置用户名密码登录的方式，这里要传入设置的用户名。如果没有密码，这里传入null或者空字符串都行
+	 * @param password 如果ElasticSearch 有设置用户名密码登录的方式，这里要传入设置的密码。如果没有密码，这里传入null或者空字符串都行
+	 */
+	public void setUsernameAndPassword(String username, String password) {
+		if(username != null && username.length() > 0) {
+			this.username = username;
+		}
+		if(password != null && password.length() > 0) {
+			this.password = password;
+		}
+	}
+	
+	/**
 	 * 设置缓存中最大缓存的条数。超过这些条就会自动打包提交。 这里自动提交的便是 {@link #cache(Map)} 所缓存的数据
 	 * @param cacheMaxNumber 缓存的条数。如果不设置，默认是100
 	 */
@@ -157,6 +175,20 @@ public class ElasticSearchUtil {
 				this.httpHosts = new HttpHost[1];
 				this.httpHosts[0] = httpHost;
 			}
+			if(this.username.length() > 0 && this.password.length() > 0) {
+				//当前elasticsearch 设置了连接的用户名密码
+				
+				/*
+				 * 
+				 * 
+				 * 
+				 * 待许佳坤实现用户名密码方式的
+				 * 
+				 * 
+				 */
+				
+				
+			}
 			this.restHighLevelClient = new RestHighLevelClient(RestClient.builder(this.httpHosts));
 		}
 		return this.restHighLevelClient;
@@ -173,6 +205,19 @@ public class ElasticSearchUtil {
 				HttpHost httpHost = new HttpHost(this.hostname, this.port, this.scheme);
 				this.httpHosts = new HttpHost[1];
 				this.httpHosts[0] = httpHost;
+			}
+			if(this.username.length() > 0 && this.password.length() > 0) {
+				//当前elasticsearch 设置了连接的用户名密码
+				
+				/*
+				 * 
+				 * 
+				 * 
+				 * 待许佳坤实现用户名密码方式的
+				 * 
+				 * 
+				 */
+				
 			}
 			this.restClient = RestClient.builder(this.httpHosts).build();
 		}
