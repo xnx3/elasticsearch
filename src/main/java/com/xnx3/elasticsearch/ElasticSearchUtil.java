@@ -338,7 +338,28 @@ public class ElasticSearchUtil {
 		}
         return response;
     }
-    
+
+
+ /**
+  * 数据编辑，修改 elasticsearch 中的一条数据
+  * @param params 要修改的数据，key-value形式。 其中map.value 支持的类型有 String、int、long、float、double、boolean
+  * @param indexName 索引名字，类似数据库的表，是修改那个表
+  * @param id 要修改的这条数据的id, 如果传入null，则由es系统自动生成一个唯一ID
+  * @return 创建结果。如果 {@link IndexResponse#getId()} 不为null、且id长度大于0，那么就成功了
+  */
+ public UpdateResponse edit(Map<String, Object> params, String indexName, String id){
+	 //创建请求
+	 UpdateRequest request = new UpdateRequest(indexName, id);
+	 request.timeout(TimeValue.timeValueSeconds(5));
+	
+	 UpdateResponse response = null;
+	 try {
+		 response = getRestHighLevelClient().update(request.doc(jsonFormatInterface.mapToJsonString(params), XContentType.JSON), RequestOptions.DEFAULT);
+	 } catch (IOException e) {
+		 e.printStackTrace();
+	 }
+	 return response;
+ }
 
     /**
      * 数据添加，网 elasticsearch 中添加一条数据
