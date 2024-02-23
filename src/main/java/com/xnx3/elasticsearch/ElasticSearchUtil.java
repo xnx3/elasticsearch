@@ -330,7 +330,8 @@ public class ElasticSearchUtil {
         if(id != null){
         	request.id(id);
     	}
-        request.timeout(TimeValue.timeValueSeconds(5));
+        //v1.2 
+//        request.timeout(TimeValue.timeValueSeconds(5));
         
         IndexResponse response = null;
 		try {
